@@ -3,10 +3,12 @@ package task1;
 import org.junit.jupiter.api.Assertions;
 import org.junit.jupiter.api.Test;
 
+import java.util.Map;
+
 public class AccountTests {
     @Test
     void should_ThrowException_When_OwnerNameIsEmptyOrNull() {
-        Assertions.assertThrows(IllegalArgumentException.class, () -> new Account(null));
+        Assertions.assertThrows(IllegalArgumentException.class, () -> new Account((String) null));
     }
 
     @Test
@@ -94,5 +96,58 @@ public class AccountTests {
         Assertions.assertEquals(count1, account.getCurrencies().get(Currency.USD));
         account.undo();
         Assertions.assertNull(account.getCurrencies().get(Currency.USD));
+    }
+
+    @Test
+    void should_Success_when_RestoreAccountFromSavepoint() {
+        String initialName = "Jane Smith";
+        Map.Entry<Currency, Integer> entry = Map.entry(Currency.USD, 10);
+        Map<Currency, Integer> initialCurrencies = Map.of(entry.getKey(), entry.getValue());
+
+        Account account = new Account(initialName);
+        account.add(entry.getKey(), entry.getValue());
+        Restorable savepoint = account.getSavepoint();
+
+        account.add(Currency.USD, 101);
+        account.add(Currency.EUR, 201);
+        account.setOwnerName("Jane Wilson");
+        savepoint.restore();
+
+        Assertions.assertEquals(initialName, account.getOwnerName());
+        Assertions.assertTrue(initialCurrencies.equals(account.getCurrencies()));
+    }
+
+    @Test
+    void should_Success_when_RestoreAccountFromMultipleSavepoints() {
+        String name1 = "Jane Smith";
+        Map.Entry<Currency, Integer> entry1 = Map.entry(Currency.USD, 10);
+        Map<Currency, Integer> currencies1 = Map.of(entry1.getKey(), entry1.getValue());
+
+        String name2 = "Jane Wilson";
+        Map.Entry<Currency, Integer> entry2 = Map.entry(Currency.EUR, 24);
+        Map<Currency, Integer> currencies2 = Map.of(
+                entry1.getKey(), entry1.getValue(),
+                entry2.getKey(), entry2.getValue());
+
+        Account account = new Account(name1);
+        account.add(entry1.getKey(), entry1.getValue());
+        // 1st savepoint
+        Restorable savepoint1 = account.getSavepoint();
+
+        // Добавляем валюту, меняем имя
+        account.add(entry2.getKey(), entry2.getValue());
+        account.setOwnerName(name2);
+        // 2st savepoint
+        Restorable savepoint2 = account.getSavepoint();
+
+        // restore to 1st savepoint
+        savepoint1.restore();
+        Assertions.assertEquals(name1, account.getOwnerName());
+        Assertions.assertTrue(currencies1.equals(account.getCurrencies()));
+
+        // restore to 2st savepoint
+        savepoint2.restore();
+        Assertions.assertEquals(name2, account.getOwnerName());
+        Assertions.assertTrue(currencies2.equals(account.getCurrencies()));
     }
 }

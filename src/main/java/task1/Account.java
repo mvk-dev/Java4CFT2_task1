@@ -3,17 +3,26 @@ package task1;
 import lombok.Getter;
 import lombok.NonNull;
 
+import java.time.LocalDateTime;
 import java.util.*;
 
 public class Account {
     @Getter
     private String ownerName;
 
-    private final Map<Currency, Integer> currencies = new HashMap<>();
-    private final Stack<Action> actionHistory = new Stack<>();
+    private final Map<Currency, Integer> currencies;
+    private final Deque<Action> actionHistory;
 
     public Account(String ownerName) {
         checkAndSetOwnerName(ownerName);
+        this.currencies = new HashMap<>();
+        this.actionHistory = new ArrayDeque<>();
+    }
+
+    private Account(Account another) {
+        this.ownerName = another.ownerName;
+        this.currencies = new HashMap<>(another.currencies);
+        this.actionHistory = new ArrayDeque<>(another.actionHistory);
     }
 
     public Map<Currency, Integer> getCurrencies() {
@@ -50,8 +59,7 @@ public class Account {
         if (!isUndoAvailable())
             throw new RuntimeException("Undo is not available");
 
-        // Берем последнее действие и отменяем
-        Action action = actionHistory.pop();
+        Action action = actionHistory.removeFirst();
         action.run();
     }
 
@@ -60,7 +68,11 @@ public class Account {
     }
 
     private void addAction(Action action) {
-        actionHistory.add(action);
+        actionHistory.addFirst(action);
+    }
+
+    public Restorable getSavepoint() {
+        return new AccountSavepoint(this);
     }
 
     @Override
@@ -69,6 +81,35 @@ public class Account {
                 "ownerName='" + ownerName + '\'' +
                 ", currencies=" + currencies +
                 '}';
+    }
+
+    private static class AccountSavepoint implements Restorable {
+        private final LocalDateTime savepointTime = LocalDateTime.now();
+        private final Account original;
+        private final Account savepoint;
+
+        private AccountSavepoint(Account account) {
+            original = account;
+            savepoint = new Account(account);
+        }
+
+        @Override
+        public void restore() {
+            original.ownerName = this.savepoint.ownerName;
+            original.currencies.clear();
+            original.currencies.putAll(this.savepoint.currencies);
+
+            original.actionHistory.clear();
+            original.actionHistory.addAll(this.savepoint.actionHistory);
+        }
+
+        @Override
+        public String toString() {
+            return "Backup{" +
+                    "savepointTime=" + savepointTime +
+                    ", savepoint=" + savepoint +
+                    '}';
+        }
     }
 }
 
